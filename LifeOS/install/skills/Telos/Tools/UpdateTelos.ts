@@ -183,8 +183,14 @@ async function main() {
   }
 
   // Step 1: Create timestamped backup
+  // Timestamps have one-second resolution, and a two-section change is two
+  // back-to-back calls, so suffix a counter rather than overwrite the earlier
+  // backup that holds the true pre-change state (#2378).
   const timestamp = getLocalTimestamp();
-  const backupFilename = filename.replace('.md', `-${timestamp}.md`);
+  let backupFilename = filename.replace('.md', `-${timestamp}.md`);
+  for (let n = 2; existsSync(join(BACKUPS_DIR, backupFilename)); n++) {
+    backupFilename = filename.replace('.md', `-${timestamp}-${String(n).padStart(2, '0')}.md`);
+  }
   const backupPath = join(BACKUPS_DIR, backupFilename);
 
   try {
@@ -197,7 +203,8 @@ async function main() {
     const prefix = filename.replace('.md', '-');
     const stale = readdirSync(BACKUPS_DIR)
       .filter((f) => f.startsWith(prefix) && f.endsWith('.md'))
-      .sort()
+      // Compare without the extension so a same-second "-02" backup sorts after its base.
+      .map((f) => f.slice(0, -3)).sort().map((f) => `${f}.md`)
       .slice(0, -3);
     for (const f of stale) rmSync(join(BACKUPS_DIR, f));
   } catch (error) {
