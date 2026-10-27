@@ -191,9 +191,15 @@ export function extractRecentExchanges(transcriptPath: string, maxExchanges: num
   // (huge tool dumps, pasted reports) can't blow the inference budget — the
   // reviewer only needs the gist to extract durable facts, not full transcripts.
   // Keeps the curation pass bounded regardless of how large any one turn was.
+  // Keep the head and the tail: dictated replies run long and put their
+  // conclusions last, so a head-only cut dropped the part that mattered (#2389).
   const MAX_MSG_CHARS = 2000;
-  const cap = (s: string): string =>
-    s.length > MAX_MSG_CHARS ? s.slice(0, MAX_MSG_CHARS) + " …[truncated]" : s;
+  const HEAD_CHARS = 1200;
+  const cap = (s: string): string => {
+    if (s.length <= MAX_MSG_CHARS) return s;
+    const tail = MAX_MSG_CHARS - HEAD_CHARS;
+    return `${s.slice(0, HEAD_CHARS)} …[${s.length - MAX_MSG_CHARS} chars omitted]… ${s.slice(-tail)}`;
+  };
   const exchanges: Exchange[] = [];
   for (let i = 0; i < events.length; i++) {
     if (events[i].role === "user") {
