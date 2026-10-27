@@ -192,19 +192,22 @@ async function ghAddLabel(repo: string, issueNumber: number, label: string): Pro
   return exit === 0;
 }
 
-async function ghListOpenIssues(repo: string): Promise<Array<{ number: number; title: string; labels: string[]; updatedAt: string }>> {
+// Returns null when the listing failed, so callers can tell "no open issues"
+// from "could not ask". Treating a failure as empty made every dedupe miss and
+// re-created each [Goal] and [BPE] issue on every offline run (#2391).
+async function ghListOpenIssues(repo: string): Promise<Array<{ number: number; title: string; labels: string[]; updatedAt: string }> | null> {
   const proc = Bun.spawn(
     ["gh", "issue", "list", "--repo", repo, "--state", "open", "--limit", "500", "--json", "number,title,labels,updatedAt"],
     { stdout: "pipe", stderr: "pipe", timeout: 10000 },
   );
   const out = await new Response(proc.stdout).text();
   const exit = await proc.exited;
-  if (exit !== 0) return [];
+  if (exit !== 0) return null;
   try {
     const arr = JSON.parse(out) as Array<{ number: number; title: string; labels: Array<{ name: string }>; updatedAt: string }>;
     return arr.map((i) => ({ number: i.number, title: i.title, labels: i.labels.map((l) => l.name), updatedAt: i.updatedAt }));
   } catch {
-    return [];
+    return null;
   }
 }
 
@@ -608,10 +611,17 @@ async function main(): Promise<void> {
   ]);
 
   await sweepSessions(cfg.repo, sinceMs, existingLabels, cfg.projectProperty, dryRun, maxCreate, stats);
-  await sweepStaleIssues(cfg.repo, openIssues, dryRun, stats);
-  await sweepProjectChecks(cfg.repo, openIssues, existingLabels, cfg.projectProperty, dryRun, stats);
-  await sweepGoals(cfg.repo, openIssues, existingLabels, dryRun, stats);
-  await sweepBpeCadence(cfg.repo, openIssues, existingLabels, dryRun, stats);
+  if (openIssues === null) {
+    // Every step below dedupes against the open-issue list; without it they
+    // would all create. Skip them this run; the next run catches up.
+    stats.errors.push("gh issue list failed: skipped stale, project-check, goal and BPE sweeps");
+    console.error("[WorkSweep] gh issue list failed — skipping stale, project-check, goal and BPE sweeps this run");
+  } else {
+    await sweepStaleIssues(cfg.repo, openIssues, dryRun, stats);
+    await sweepProjectChecks(cfg.repo, openIssues, existingLabels, cfg.projectProperty, dryRun, stats);
+    await sweepGoals(cfg.repo, openIssues, existingLabels, dryRun, stats);
+    await sweepBpeCadence(cfg.repo, openIssues, existingLabels, dryRun, stats);
+  }
 
   stats.duration_ms = Date.now() - t0;
   writeLogLine(stats);
