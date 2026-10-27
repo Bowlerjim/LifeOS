@@ -1,7 +1,7 @@
 ---
 name: DetectAI
 version: 1.1.2
-description: "Detects AI-generated writing four ways — a heuristic audit against a catalog of known AI patterns, deterministic statistical signals (n-gram entropy, burstiness, repetition, stylometry — features never verdicts), an empirical Pangram score calibrated against known-human baselines, and a keyless scan for watermark and steganography signatures (invisible characters, homoglyphs, bidi, odd whitespace) in the bytes. USE WHEN detect AI writing, is this AI, AI detection, AI detector, did an AI write this, does this sound like AI, AI writing score, pangram, scan for AI tells, flag AI patterns, AI-isms, statistical AI signals, burstiness, text entropy, is this watermarked, detect watermark, steganography, zero-width chars, hidden characters, invisible unicode, compare drafts for AI-ness. NOT FOR rewriting prose to strip AI patterns (use a voice/authoring skill), plagiarism detection, detecting AI-generated images/video/code, or judging whether writing is any good."
+description: "Detects AI-generated writing four ways — a heuristic audit against a catalog of known AI patterns, deterministic statistical signals (n-gram entropy, burstiness, repetition, stylometry — features never verdicts), an empirical Pangram score calibrated against known-human baselines, and a keyless scan for watermark and steganography signatures (invisible characters, homoglyphs, bidi, odd whitespace) in the bytes. USE WHEN detect AI writing, is this AI, AI detection, AI detector, did an AI write this, does this sound like AI, AI writing score, pangram, scan for AI tells, flag AI patterns, AI-isms, statistical AI signals, burstiness, text entropy, is this watermarked, detect watermark, steganography, zero-width chars, hidden characters, invisible unicode, compare drafts for AI-ness. NOT FOR rewriting prose to strip AI patterns (rewriting is a separate pass; see After a flag: remediation), plagiarism detection, detecting AI-generated images/video/code, or judging whether writing is any good."
 ---
 
 # DetectAI
@@ -59,6 +59,14 @@ Asked simply "is this AI?" with a key configured, run both and report them side 
 - **Every call bills and polls.** The API is async (submit, then poll to `STAGE_SUCCESS`). Don't loop it on trivial snippets; batch comparisons run sequentially, one call each.
 - **HTTP 402 means out of credits, not a bad key.** 429 means rate limited — realtime checks cap at 5 QPS. Neither is an auth failure; don't rotate the key over them.
 - **Never degrade writing to beat a detector.** Injected typos, broken sentences, and "humanizer" laundering damage the prose and don't fix the underlying problem. If text must read human, the fix is a human in the loop.
+
+## After a flag: remediation
+
+This skill reports; it never rewrites. When a flag needs fixing, the loop is:
+
+1. **Rewrite pass, by a person or an authoring skill.** Remove the flagged patterns one by one and keep every fact, name, number and claim intact. A rewrite that changes what the text says is not a fix.
+2. **Re-scan the rewrite.** Run **Detect** again on the new text, and **Score** before and after against known-human baselines (the last example below).
+3. **Stop at "no real tells left", not at 0%.** The Gotchas still hold: chasing a detector number degrades prose, and a P2 judgment call can stay if the writer chose it.
 
 ## Examples
 
